@@ -333,6 +333,11 @@ func TestWriteNil(t *testing.T) {
 		t.Errorf("Test failed, expected no error, got %v", err)
 	}
 
+	err = w.Write("hello", 1, 1.1, nil, nil)
+	if err != nil {
+		t.Errorf("Test failed, expected no error, got %v", err)
+	}
+
 	err = w.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -343,13 +348,18 @@ func TestWriteNil(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := r.Select("string1", "int1", "double1", "timestamp1", "boolean1")
-	expected := []interface{}{nil, nil, nil, nil, nil}
+	expected := [][]interface{}{
+		{nil, nil, nil, nil, nil},
+		{"hello", int64(1), Double(1.1), nil, nil},
+	}
+	var row int
 	for c.Stripes() {
 		for c.Next() {
 			actual := c.Row()
-			if !reflect.DeepEqual(actual, expected) {
-				t.Errorf("Test failed, expected %v, got %v", expected, actual)
+			if !reflect.DeepEqual(actual, expected[row]) {
+				t.Errorf("Test failed, expected %v, got %v", expected[row], actual)
 			}
+			row++
 		}
 	}
 
@@ -534,7 +544,7 @@ type Column struct {
 	Data []interface{}
 }
 
-func (c *Column) Range(from int, until int, f func(int, interface{}) error) error{
+func (c *Column) Range(from int, until int, f func(int, interface{}) error) error {
 	for i := from; i < until; i++ {
 		if i >= len(c.Data) {
 			break
@@ -600,7 +610,7 @@ func TestColumnWriters(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	iteratable := []ColumnIterator{cols[0],cols[1],cols[2]}
+	iteratable := []ColumnIterator{cols[0], cols[1], cols[2]}
 	buffer2 := &bytes.Buffer{}
 	colWriter, _ := NewWriter(buffer2, SetSchema(schema))
 	if err := colWriter.WriteColumns(iteratable); err != nil {
@@ -632,7 +642,7 @@ func TestColumnWriters_MultipleStripes(t *testing.T) {
 		Data: []interface{}{},
 	}
 
-	for i:=0; i<15000;i++ {
+	for i := 0; i < 15000; i++ {
 		col0.Data = append(col0.Data, i)
 		col1.Data = append(col1.Data, float64(i))
 	}
@@ -688,7 +698,7 @@ func TestColumnWriters_MultipleWrites(t *testing.T) {
 	col1 := &Column{
 		Data: []interface{}{},
 	}
-	for i:=0; i<8000;i++ {
+	for i := 0; i < 8000; i++ {
 		col0.Data = append(col0.Data, i)
 		col1.Data = append(col1.Data, float64(i))
 	}
@@ -711,7 +721,7 @@ func TestColumnWriters_MultipleWrites(t *testing.T) {
 	col3 := &Column{
 		Data: []interface{}{},
 	}
-	for i:=8000; i<15000;i++ {
+	for i := 8000; i < 15000; i++ {
 		col2.Data = append(col0.Data, i)
 		col3.Data = append(col1.Data, float64(i))
 	}
