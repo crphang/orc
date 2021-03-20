@@ -37,26 +37,79 @@ func testWrite(writer *Writer) error {
 	return err
 }
 
-// BenchmarkWrite/write-12         	      31	  38492180 ns/op	10516950 B/op	  456187 allocs/op
+// BenchmarkWrite/write-12         	      79	  14747973 ns/op	 4254266 B/op	  181089 allocs/op
 func BenchmarkWrite(b *testing.B) {
 	buf := &bytes.Buffer{}
+
+	schema, _ := ParseSchema("struct<int1:int,int2:int,double1:double,string1:string>")
+
+	type row []interface{}
+	rows := []row{}
+	for i:=0; i<15000;i++ {
+		currentRow := row{}
+		currentRow = append(currentRow, 1)
+		currentRow = append(currentRow, i)
+		currentRow = append(currentRow, float64(i))
+		currentRow = append(currentRow, fmt.Sprintf("%d", 1))
+
+		rows = append(rows, currentRow)
+	}
 
 	// Run the actual benchmark
 	b.Run("write", func(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
-			schema, err := ParseSchema("struct<string1:string,timestamp1:timestamp,int1:int,boolean1:boolean,double1:double,nested:struct<double2:double,nested:struct<int2:int>>>")
+			w, _ := NewWriter(buf, SetSchema(schema))
+
+			for _, v := range rows {
+				err := w.Write(v...)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+			_ = w.Close()
+			buf.Reset()
+		}
+	})
+}
+
+// BenchmarkColumnWrite/write-12         	      87	  13563963 ns/op	 3774514 B/op	  166097 allocs/op
+func BenchmarkColumnWrite(b *testing.B) {
+	buf := &bytes.Buffer{}
+
+	schema, _ := ParseSchema("struct<int1:int,int2:int,double1:double,string1:string>")
+	col0 := &Column{
+		Data: []interface{}{},
+	}
+	col1 := &Column{
+		Data: []interface{}{},
+	}
+	col2 := &Column{
+		Data: []interface{}{},
+	}
+	col3 := &Column{
+		Data: []interface{}{},
+	}
+	for i:=0; i<15000;i++ {
+		col0.Data = append(col0.Data, 1)
+		col1.Data = append(col1.Data, i)
+		col2.Data = append(col2.Data, float64(i))
+		col3.Data = append(col3.Data, fmt.Sprintf("%d", 1))
+	}
+	// Flushing first set of columns
+	iteratable := []ColumnIterator{col0, col1, col2, col3}
+
+	b.Run("write", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for n := 0; n < b.N; n++ {
+			w, _ := NewWriter(buf, SetSchema(schema))
+			err := w.WriteColumns(iteratable)
 			if err != nil {
 				b.Fatal(err)
 			}
-
-			w, err := NewWriter(buf, SetSchema(schema))
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			_ = testWrite(w)
+			_ = w.Close()
 			buf.Reset()
 		}
 	})
